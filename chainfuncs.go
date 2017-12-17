@@ -11,6 +11,29 @@ import (
 //BytesObject can be converted to a byte slice.
 type BytesObject interface {
 	GetBytes() []byte
+	GetHash() []byte
+}
+
+func getHash(obj BytesObject) []byte {
+	_, checked := hashes[&obj]
+	if checked {
+		return hashes[&obj]
+	}
+	hash := sha256.New()
+	hash.Write(obj.GetBytes())
+	sum := hash.Sum(nil)
+	hashes[&obj] = sum
+	return sum
+}
+
+//GetHash returns a transaction's hash.
+func (t *Transaction) GetHash() []byte {
+	return getHash(t)
+}
+
+//GetHash returns a block's hash.
+func (b *Block) GetHash() []byte {
+	return getHash(b)
 }
 
 var generatedBytes map[interface{}][]byte
@@ -59,7 +82,7 @@ func (b *Block) GetBytes() []byte {
 		Transactions []Transaction
 		Miner        *ecdsa.PublicKey
 		Nonce        uint64
-	}{GetHash(b.PrevBlock), b.Transactions, b.Miner, b.Nonce}
+	}{b.PrevBlock.GetHash(), b.Transactions, b.Miner, b.Nonce}
 	bytes, _ = json.Marshal(marshalBlock)
 	generatedBytes[b] = bytes
 	return bytes
@@ -67,25 +90,12 @@ func (b *Block) GetBytes() []byte {
 
 var hashes map[*BytesObject][]byte
 
-//GetHash returns a block's hash.
-func GetHash(obj BytesObject) []byte {
-	_, checked := hashes[&obj]
-	if checked {
-		return hashes[&obj]
-	}
-	hash := sha256.New()
-	hash.Write(obj.GetBytes())
-	sum := hash.Sum(nil)
-	hashes[&obj] = sum
-	return sum
-}
-
 var validities map[interface{}]bool
 var spent map[*Transaction]*Transaction
 
 //IsValid checks a signature's validity.
 func (s Signature) IsValid(signed BytesObject, signer *ecdsa.PublicKey) bool {
-	return ecdsa.Verify(signer, signed.GetBytes(), R, S)
+	return ecdsa.Verify(signer, signed.GetHash(), R, S)
 }
 
 //IsValid checks a transaction's validity.
